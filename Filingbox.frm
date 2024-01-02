@@ -1,10 +1,10 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} Filingbox 
    Caption         =   "Select Folder for Filing"
-   ClientHeight    =   13410
+   ClientHeight    =   11415
    ClientLeft      =   2520
-   ClientTop       =   9765
-   ClientWidth     =   19755
+   ClientTop       =   9765.001
+   ClientWidth     =   15765
    OleObjectBlob   =   "Filingbox.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
@@ -13,6 +13,7 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+
 ' Show a list of folders taken from the locations of a selected set of emails.
 ' Also shows a FULL list of all folders with a dynamic filter box, type some chars to filter the full list
 ' If a folder is selected (preference given to the select folder list), file all of the selected emails to that folder.
@@ -272,6 +273,10 @@ Private Sub tbFilterAllFolders_Change()
  
 End Sub
 
+'Private Sub tbFilterAllFolders_Enter()
+'    Me.lstallfolders.SetFocus
+'End Sub
+
 'Set up the form
 Private Sub UserForm_Initialize()
 
@@ -300,15 +305,15 @@ Private Sub UserForm_Initialize()
                 If objItem.Parent.Name <> "Inbox" And _
                         objItem.Parent.Name <> "Sent Items" And _
                         objItem.Parent.Name <> "Deleted Items" And _
-                        IsInArray(folderPaths, objItem.Parent.folderPath) = False Then
+                        IsInArray(folderPaths, objItem.Parent.FolderPath) = False Then
                         'Contains(folderPaths, objItem.Parent.folderPath) = False Then
                         
                     ' Save mailbox name
                     If maxPaths = 0 Then
-                        mb = Split(objItem.Parent.folderPath, "\")
+                        mb = Split(objItem.Parent.FolderPath, "\")
                         mailbox = mb(2)
                     End If
-                    folderPaths(maxPaths) = objItem.Parent.folderPath
+                    folderPaths(maxPaths) = objItem.Parent.FolderPath
                     maxPaths = maxPaths + 1
                     folderNames(maxNames) = objItem.Parent.Name
                     maxNames = maxNames + 1
@@ -377,20 +382,20 @@ Sub ProcessFolder(objStartFolder As Outlook.MAPIFolder, _
         Then
             ' Save mailbox name
             If maxFAP = 0 And mailbox = "" Then
-                mb = Split(objFolder.folderPath, "\")
+                mb = Split(objFolder.FolderPath, "\")
                 mailbox = mb(2)
             End If
 
             ' Add to the All Folder List
             lstallfolders.AddItem strFolderName + "\" + objFolder.Name
-            folderAllPaths(maxFAP) = objFolder.folderPath
+            folderAllPaths(maxFAP) = objFolder.FolderPath
             maxFAP = maxFAP + 1
             folderAllNames(maxFAN) = strFolderName + "\" + objFolder.Name
             maxFAN = maxFAN + 1
             ' Recurse subfolders but not for subfolders of blocked folders
             If blnRecurseSubFolders Then
                 ' Recurse through subfolders
-                ProcessFolder objFolder, True, strFolderPath + "\" + objFolder.folderPath, _
+                ProcessFolder objFolder, True, strFolderPath + "\" + objFolder.FolderPath, _
                     strFolderName + "\" + objFolder.Name
             End If
         End If
