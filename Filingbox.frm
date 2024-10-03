@@ -74,16 +74,43 @@ Dim maxFAP As Long
 Dim folderAllNames(0 To 999) As String
 Dim maxFAN As Long
 Dim mailbox As String
-Dim exitDelay As Long ' seconds to delay closure of form to allow copy of link
+Dim exitDelay As Long                            ' seconds to delay closure of form to allow copy of link
+Dim ColExcludedFolders As Collection
+
+Public Function IsExcludedFolder(ColExcludedFolders As Collection, myCheck As String) As Boolean
+    Dim ColItem
+    Dim DoesItemExist
+    
+    DoesItemExist = False
+    
+    For Each ColItem In ColExcludedFolders
+        If myCheck = ColItem Then
+            DoesItemExist = True
+            Exit Function
+        End If
+    Next
+    
+    IsExcludedFolder = DoesItemExist
+End Function
 
 Private Sub btnCancel_Click()
     ' Do nothing other than cancel everything
     Unload Me
 End Sub
 
+Private Sub btnGetConversation_Click()
+    ' Get and select all messages in conversation.
+    Dim myItem
+    Dim myItems
+    
+End Sub
+
 Private Sub btnRefresh_Click()
     ' Call the UserForm_Initialize subroutine to refresh the form
     UserForm_Initialize
+    Me.tbFilterAllFolders.Value = ""
+    Me.tbFilterAllFolders.SetFocus
+    
 End Sub
 
 ' Only change the current view to the selected folder
@@ -102,7 +129,6 @@ Private Sub btnView_Click()
     Set objItem = Nothing
 End Sub
 
-
 ' Do the move
 Private Sub btnFileToFolder_Click()
     Dim fldr As Outlook.MAPIFolder
@@ -110,6 +136,11 @@ Private Sub btnFileToFolder_Click()
     Dim x As Long
     
     Set fldr = fldrDest
+    If fldr Is Nothing Then
+        MsgBox "No target folder selected.", vbOKOnly
+        Exit Sub
+    End If
+    
     On Error GoTo err
     ' If anywhere to move to, move each email now
     If IsObject(fldr) Then
@@ -120,8 +151,9 @@ Private Sub btnFileToFolder_Click()
             ' Only move items not already in the dest folder
             If objItem.Parent.Name <> fldr.Name Then
                 objItem.Move fldr
+                 Debug.Print "Moved to: ", fldr.Name
                 x = x + 1
-'                AddLinkToMessage objItem
+                ' AddLinkToMessage objItem
             End If
         Next objItem
     End If
@@ -134,8 +166,12 @@ endit:
     On Error GoTo 0
     Set fldr = Nothing
     Set objItem = Nothing
+    
+    ' Clean up and setup for next move.
+    Me.lstallfolders.Clear
+    Me.tbFilterAllFolders.Value = ""
+    Me.tbFilterAllFolders.SetFocus
 End Sub
-
 
 Private Function fldrDest() As Outlook.MAPIFolder
     Dim obj As Object
@@ -144,21 +180,20 @@ Private Function fldrDest() As Outlook.MAPIFolder
     Dim arr, e, i As Integer
     Dim objItem As Outlook.MailItem
     Dim x
-    
-    ' Index = -1 if nothing selected
+
     If lstfolders.ListIndex > -1 Then
-        'Debug.Print "Selected Folder", lstFolders.Value, lstFolders.ListIndex
-        'Debug.Print folderPaths(lstFolders.ListIndex)
+        '        Debug.Print "Selected Folder", lstfolders.Value, lstfolders.ListIndex
+        '        Debug.Print folderPaths(lstfolders.ListIndex)
         
         'NB: application.session.... gives the top level folder set for the current mailbox
         Set fldrDest = ReturnDestinationFolder(folderPaths(lstfolders.ListIndex), _
-            Application.Session.GetDefaultFolder(olFolderInbox).Parent.Folders _
-        )
+                                               Application.Session.GetDefaultFolder(olFolderInbox).Parent.Folders _
+                                               )
         ' set i=1 as we can only ever select one entry on this side
         i = 1
        
     ElseIf lstallfolders.ListIndex > -1 Then
-        'Debug.Print "Selected from All Folders", lstAllFolders.Value; lstAllFolders.ListIndex
+        '        Debug.Print "Selected from All Folders", lstallfolders.Value; lstallfolders.ListIndex
         
         arr = Filter(SourceArray:=folderAllPaths, match:=lstallfolders.Value, Compare:=vbTextCompare)
         ' Annoyingly, filter has no way to do exact matches
@@ -172,19 +207,19 @@ Private Function fldrDest() As Outlook.MAPIFolder
         Next e
         ' If there is more than one matching folder, error, else move
         If i = 1 Then
-            'Debug.Print "Filtered:", arr(0)
+            '            Debug.Print "Filtered:", arr(0)
             
             'NB: application.session.... gives the top level folder set for the current mailbox
             Set fldrDest = ReturnDestinationFolder(destFldr, _
-                Application.Session.GetDefaultFolder(olFolderInbox).Parent.Folders _
-            )
+                                                   Application.Session.GetDefaultFolder(olFolderInbox).Parent.Folders _
+                                                   )
         Else
             MsgBox "Zero or more than 1 folder was returned. Giving up", vbCritical, "Move to Folder Error"
         End If
     End If
     
     If i > 1 Or i = 0 Then
-        fldrDest = Nothing
+        Set fldrDest = Nothing
     End If
     
     Set obj = Nothing
@@ -192,10 +227,8 @@ Private Function fldrDest() As Outlook.MAPIFolder
 
 End Function
 
-
-
 Private Function ReturnDestinationFolder(findStr As Variant, fldrs As Outlook.Folders _
-    ) As Outlook.MAPIFolder
+                                                            ) As Outlook.MAPIFolder
     
     Dim fldr As Outlook.MAPIFolder
     Dim findArr As Variant
@@ -212,13 +245,13 @@ Private Function ReturnDestinationFolder(findStr As Variant, fldrs As Outlook.Fo
     For Each fldr In fldrs
         If fldr.Name = findArr(idx) Then
             ' Any more to find?
-            If UBound(findArr) > idx Then 'LBound(findArr) Then
+            If UBound(findArr) > idx Then        'LBound(findArr) Then
                 ' Yes, so recurse if there are any sub folders
                 If fldr.Folders.Count Then
                     Set ReturnDestinationFolder = ReturnDestinationFolder( _
-                        findArr(idx + 1), _
-                        fldr.Folders _
-                    )
+                                                  findArr(idx + 1), _
+                                                  fldr.Folders _
+                                                  )
                 Else
                     ' No sub folders so we give up
                     Set ReturnDestinationFolder = Nothing
@@ -236,18 +269,13 @@ Private Function ReturnDestinationFolder(findStr As Variant, fldrs As Outlook.Fo
 
 End Function
 
-
 Private Sub lstAllFolders_DblClick(ByVal Cancel As MSForms.ReturnBoolean)
     Call btnFileToFolder_Click
 End Sub
 
-
-
 Private Sub lstFolders_DblClick(ByVal Cancel As MSForms.ReturnBoolean)
     Call btnFileToFolder_Click
 End Sub
-
-
 
 'Private Sub tbFilterAllFolders_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
 '    With Me.tbFilterAllFolders
@@ -259,6 +287,7 @@ End Sub
 '    End With
 '
 'End Sub
+
 
 ' If the text box contents change, begin filtering
 Private Sub tbFilterAllFolders_Change()
@@ -273,10 +302,6 @@ Private Sub tbFilterAllFolders_Change()
  
 End Sub
 
-'Private Sub tbFilterAllFolders_Enter()
-'    Me.lstallfolders.SetFocus
-'End Sub
-
 'Set up the form
 Private Sub UserForm_Initialize()
 
@@ -285,6 +310,33 @@ Private Sub UserForm_Initialize()
     Dim numSelected As Long
     Dim numEmailsSelected As Long
     Dim mb
+   
+    '     Set up Excluded Folders List
+    '    Dim ColExcludedFolders As Collection
+    '
+    '    With ColExcludedFolders
+    '        .Add ("Sent Items")
+    '        .Add ("Deleted Items")
+    '        .Add ("Outbox")
+    '        .Add ("Calendar")
+    '        .Add ("Contacts")
+    '        .Add ("Notes")
+    '        .Add ("Journal")
+    '        .Add ("Junk E-mail")
+    '        .Add ("News Feed")
+    '        .Add ("RSS Feeds")
+    '        .Add ("Conversation History")
+    '        .Add ("Conversation Action Settings")
+    '        .Add ("Quick Step Settings")
+    '        .Add ("LinkedIn")
+    '        .Add ("Suggested Contacts")
+    '        .Add ("Sync Issues")
+    '        .Add ("Tasks")
+    '        .Add ("My Site")
+    '        .Add ("RSS Subscriptions")
+    '        .Add ("Drafts")
+    '         .Add ("")
+    '   End With
    
     ' Walk through all selected emails and compile a list of folders
     ' that they are in. Ignore the inbox
@@ -303,10 +355,10 @@ Private Sub UserForm_Initialize()
             If objItem.Parent.Class = olFolder Then
                 ' Only want folders != Inbox/Send/Deleted
                 If objItem.Parent.Name <> "Inbox" And _
-                        objItem.Parent.Name <> "Sent Items" And _
-                        objItem.Parent.Name <> "Deleted Items" And _
-                        IsInArray(folderPaths, objItem.Parent.FolderPath) = False Then
-                        'Contains(folderPaths, objItem.Parent.folderPath) = False Then
+                   objItem.Parent.Name <> "Sent Items" And _
+                   objItem.Parent.Name <> "Deleted Items" And _
+                   IsInArray(folderPaths, objItem.Parent.FolderPath) = False Then
+                    'Contains(folderPaths, objItem.Parent.folderPath) = False Then
                         
                     ' Save mailbox name
                     If maxPaths = 0 Then
@@ -352,34 +404,47 @@ Sub ProcessFolder(objStartFolder As Outlook.MAPIFolder, _
 
     Dim i As Long, mb
 
-     ' Loop through the items in the current folder
+    ' Loop through the items in the current folder
     For i = 1 To objStartFolder.Folders.Count
 
         Set objFolder = objStartFolder.Folders(i)
 
+        
+        ' TODO: change code to exclude from an expandable list of excluded folders.
+        ' https://www.mrexcel.com/board/threads/vba-check-if-string-exists-within-collection.277889/
+
+
         ' Populate the listbox & save actual folder paths
         ' But only for NOT sent, drafts, etc
         ' Don't block the inbox in case it has sub-folders
+        
+        '        Dim FolderExcluded As Boolean
+        '        FolderExcluded = IsExcludedFolder(ColExcludedFolders, objFolder.Name)
+        '        Debug.Print "Folder", objFolder.Name, "is excluded", FolderExcluded
+        '
+        
         If objFolder.Name <> "Sent Items" And _
-            objFolder.Name <> "Deleted Items" And _
-            objFolder.Name <> "Outbox" And _
-            objFolder.Name <> "Calendar" And _
-            objFolder.Name <> "Contacts" And _
-            objFolder.Name <> "Notes" And _
-            objFolder.Name <> "Journal" And _
-            objFolder.Name <> "Junk E-mail" And _
-            objFolder.Name <> "News Feed" And _
-            objFolder.Name <> "RSS Feeds" And _
-            objFolder.Name <> "Conversation History" And _
-            objFolder.Name <> "Conversation Action Settings" And _
-            objFolder.Name <> "Quick Step Settings" And _
-            objFolder.Name <> "LinkedIn" And _
-            objFolder.Name <> "Suggested Contacts" And _
-            objFolder.Name <> "Sync Issues" And _
-            objFolder.Name <> "Tasks" And _
-            objFolder.Name <> "My Site" And _
-            objFolder.Name <> "Drafts" _
-        Then
+           objFolder.Name <> "Deleted Items" And _
+           objFolder.Name <> "Outbox" And _
+           objFolder.Name <> "Calendar" And _
+           objFolder.Name <> "Contacts" And _
+           objFolder.Name <> "Notes" And _
+           objFolder.Name <> "Journal" And _
+           objFolder.Name <> "Junk E-mail" And _
+           objFolder.Name <> "News Feed" And _
+           objFolder.Name <> "RSS Feeds" And _
+           objFolder.Name <> "Conversation History" And _
+           objFolder.Name <> "Conversation Action Settings" And _
+           objFolder.Name <> "Quick Step Settings" And _
+           objFolder.Name <> "LinkedIn" And _
+           objFolder.Name <> "Suggested Contacts" And _
+           objFolder.Name <> "Sync Issues" And _
+           objFolder.Name <> "Tasks" And _
+           objFolder.Name <> "My Site" And _
+           objFolder.Name <> "RSS Subscriptions" And _
+           objFolder.Name <> "Drafts" And _
+           objFolder.Name <> ".DSNs" _
+           Then
             ' Save mailbox name
             If maxFAP = 0 And mailbox = "" Then
                 mb = Split(objFolder.FolderPath, "\")
@@ -396,7 +461,7 @@ Sub ProcessFolder(objStartFolder As Outlook.MAPIFolder, _
             If blnRecurseSubFolders Then
                 ' Recurse through subfolders
                 ProcessFolder objFolder, True, strFolderPath + "\" + objFolder.FolderPath, _
-                    strFolderName + "\" + objFolder.Name
+                              strFolderName + "\" + objFolder.Name
             End If
         End If
 
@@ -406,11 +471,10 @@ Sub ProcessFolder(objStartFolder As Outlook.MAPIFolder, _
 
 End Sub
 
-
 ' ---- Functions from other people ----
 
 Private Sub AddToArray(ByRef arr As Variant, val As Variant)
-On Error GoTo err
+    On Error GoTo err
     ReDim Preserve arr(LBound(arr) To UBound(arr) + 1)
     On Error GoTo 0
     arr(UBound(arr)) = val
@@ -420,43 +484,43 @@ err:
 End Sub
 
 Function IsInArray(arr As Variant, valueToFind As Variant) As Boolean
-' checks if valueToFind is found in arr, no loop!
-On Error GoTo err
-  IsInArray = (UBound(Filter(arr, valueToFind)) > -1)
-  Exit Function
+    ' checks if valueToFind is found in arr, no loop!
+    On Error GoTo err
+    IsInArray = (UBound(Filter(arr, valueToFind)) > -1)
+    Exit Function
 err:
     Debug.Print "poo"
 End Function
 
 ' Create an outlook: link to a msg
 'Sub AddLinkToMessage(objMail As Outlook.MailItem)
-    'Dim objMail As Object
-    'was earlier Outlook.MailItem
-    'Dim doClipboard As New DataObject
+'Dim objMail As Object
+'was earlier Outlook.MailItem
+'Dim doClipboard As New DataObject
 '    Dim txt As String
       
-    'One and ONLY one message muse be selected
-    'Set objMail = Application.ActiveExplorer.Selection.Item(1)
+'One and ONLY one message muse be selected
+'Set objMail = Application.ActiveExplorer.Selection.Item(1)
     
-    'If objMail.Class = olMail Then
-    '    txt = "outlook:" + objMail.EntryID + "][MESSAGE: " + objMail.Subject + " (" + objMail.SenderName + ")"
-    'ElseIf objMail.Class = olAppointment Then
-    '    txt = "outlook:" + objMail.EntryID + "][MEETING: " + objMail.Subject + " (" + objMail.Organizer + ")"
-    'ElseIf objMail.Class = olTask Then
-    '    txt = "outlook:" + objMail.EntryID + "][TASK: " + objMail.Subject + " (" + objMail.Owner + ")>"
-    'ElseIf objMail.Class = olContact Then
-    '    txt = "outlook:" + objMail.EntryID + "][CONTACT: " + objMail.Subject + " (" + objMail.FullName + ")"
-    'ElseIf objMail.Class = olJournal Then
-    '    txt = "outlook:" + objMail.EntryID + "][JOURNAL: " + objMail.Subject + " (" + objMail.Type + ")"
-    'ElseIf objMail.Class = olNote Then
-    '    txt = "outlook:" + objMail.EntryID + "][NOTE: " + objMail.Subject + " (" + " " + ")"
-    'Else
-    '    txt = "outlook:" + objMail.EntryID + "][ITEM: " + objMail.Subject + " (" + objMail.MessageClass + ")"
-    'End If
+'If objMail.Class = olMail Then
+'    txt = "outlook:" + objMail.EntryID + "][MESSAGE: " + objMail.Subject + " (" + objMail.SenderName + ")"
+'ElseIf objMail.Class = olAppointment Then
+'    txt = "outlook:" + objMail.EntryID + "][MEETING: " + objMail.Subject + " (" + objMail.Organizer + ")"
+'ElseIf objMail.Class = olTask Then
+'    txt = "outlook:" + objMail.EntryID + "][TASK: " + objMail.Subject + " (" + objMail.Owner + ")>"
+'ElseIf objMail.Class = olContact Then
+'    txt = "outlook:" + objMail.EntryID + "][CONTACT: " + objMail.Subject + " (" + objMail.FullName + ")"
+'ElseIf objMail.Class = olJournal Then
+'    txt = "outlook:" + objMail.EntryID + "][JOURNAL: " + objMail.Subject + " (" + objMail.Type + ")"
+'ElseIf objMail.Class = olNote Then
+'    txt = "outlook:" + objMail.EntryID + "][NOTE: " + objMail.Subject + " (" + " " + ")"
+'Else
+'    txt = "outlook:" + objMail.EntryID + "][ITEM: " + objMail.Subject + " (" + objMail.MessageClass + ")"
+'End If
     
 '    txt = "outlook:" + objMail.EntryID
     
-    ' Replace all spaces with %20
+' Replace all spaces with %20
 '    CopyTextToClipboard (Replace(txt, " ", "%20"))
     
 'End Sub
@@ -465,22 +529,22 @@ End Function
 
 ' @see: http://www.thespreadsheetguru.com/blog/2015/1/13/how-to-use-vba-code-to-copy-text-to-the-clipboard
 'Sub CopyTextToClipboard(txt As String)
-    'PURPOSE: Copy a given text to the clipboard (using DataObject)
-    'SOURCE: www.TheSpreadsheetGuru.com
-    'NOTES: Must enable Forms Library: Checkmark Tools > References > Microsoft Forms 2.0 Object Library
+'PURPOSE: Copy a given text to the clipboard (using DataObject)
+'SOURCE: www.TheSpreadsheetGuru.com
+'NOTES: Must enable Forms Library: Checkmark Tools > References > Microsoft Forms 2.0 Object Library
     
 '    Dim obj As New DataObject
     
-    'Make object's text equal above string variable
+'Make object's text equal above string variable
 '    obj.SetText txt
     
-    'Place DataObject's text into the Clipboard
-    ' >> WARNING: Not working in Windows 8.1! Just get "??" instead of content <<
-    'obj.PutInClipboard
+'Place DataObject's text into the Clipboard
+' >> WARNING: Not working in Windows 8.1! Just get "??" instead of content <<
+'obj.PutInClipboard
 '    tbLink.Value = txt
     
-    'Notify User
-    'MsgBox txt, vbInformation
+'Notify User
+'MsgBox txt, vbInformation
     
 'End Sub
 
@@ -493,4 +557,5 @@ Sub WaitFor(NumOfSeconds As Long)
     Loop
 
 End Sub
+
 
